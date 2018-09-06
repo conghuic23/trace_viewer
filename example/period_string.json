@@ -1,0 +1,38 @@
+{
+"periods":
+	{
+	    	"req_op":"1",
+	    	"before kick":"2",
+	    	"vmexit_inout_entry":"3",
+	    	"virtio_blk_notify_entry":"4",
+	    	"virtio_blk_proc_entry":"5",
+	    	"blockif_write_entry":"6",
+	    	"blockif_write_exit":"7",
+	    	"virtio_blk_proc_exit":"8",
+	    	"virtio_blk_notify_exit":"9",
+	    	"vmexit_inout_exit":"10",
+	    	"after kick":"11",
+	    	"blockif_proc_entry":"12",
+	    	"virtio_blk_done_entry":"13",
+	    	"virtio_blk_done_exit":"14",
+	    	"blockif_proc_exit":"15",
+	    	"virtblknotify":"16",
+	    	"before complete":"17",
+	    	"after complete":"18"
+	},
+"draw_periods":
+	{
+		"uos": [
+			[1,2],
+			[2,11],
+			[16,18],
+			[17,18]
+		],
+		"sos": [
+			[3,10],
+			[5,8],
+			[6,7],
+			[12,15]
+		]
+	}
+}
