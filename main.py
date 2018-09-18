@@ -29,18 +29,29 @@ def get_data_list(filename, add_dict, prefix):
             tmp_dict={}
             try:
                 tmp_dict["additional"] = ""
-                for key in add_dict.keys():
-                    if key in line:
-                        tmp_dict["additional"] = add_dict[key]
+                if add_dict:
+                    for key in add_dict.keys():
+                        if key in line:
+                            tmp_dict["additional"] = add_dict[key]
+                            tmp_dict["fullinfo"] = prefix + line
+                            t = pa.findall(line)[0].split(":")
+                            tmp_dict["period"] = t[1].strip()
+                            tmp_dict["timestamp"] = float(t[0])
+                            whole_list.append(tmp_dict)
+                else:
+                    t = pa.findall(line)
+                    if t:
+                        t = t[0].split(":")
+                        tmp_dict["additional"] = " "
                         tmp_dict["fullinfo"] = prefix + line
-                        t = pa.findall(line)[0].split(":")
                         tmp_dict["period"] = t[1].strip()
                         tmp_dict["timestamp"] = float(t[0])
                         whole_list.append(tmp_dict)
-            except:
+            except Exception as e:
+                print("LINE:",line)
+                print(e)
                 print("ERROR !!! if use tsc timestamp,",
                       "please add '-c' option!!")
-                print(line)
                 exit()
     print("get {} data".format(len(whole_list)))
     return whole_list
@@ -236,6 +247,12 @@ def parse_init():
                         required=False,
                         dest="tsc_en",
                         help="timestamp is tsc")
+    parser.add_argument('-i', '--ignore_period_only',
+                        action='store_true',
+                        default=False,
+                        required=False,
+                        dest="ignoreperiod",
+                        help="ignore period in json file, store whole sorted log, then exit!!")
     return parser
 
 def check_period_value(period_list, period_dict):
@@ -313,6 +330,30 @@ def prepare_draw_data(table, period, period_dict):
     data["period_dict"] = period_dict
     return data
 
+def pick_and_sorted(c_file, uos_file, sos_file, period_dict):
+    uos_file_data = get_data_list(uos_file, period_dict, "UOS")
+    sos_file_data = get_data_list(sos_file, period_dict, "SOS")
+
+    merge_data = uos_file_data + sos_file_data
+    print("merge data len: {}".format(len(merge_data)))
+
+    print("start to sort ... ")
+
+    sorted_data = sorted(merge_data, key=lambda x:x["timestamp"])
+
+    print("sort done")
+
+    with open(c_file, "w") as f:
+        if period_dict:
+            for d in sorted_data:
+                line = "{}:\t\t\t{}\t{}\n".format(d["period"], d["timestamp"], d["additional"])
+                f.write(line)
+        else:
+            for d in sorted_data:
+                line = "{}\n".format(d["fullinfo"])
+                f.write(line)
+
+    return sorted_data
 
 def main():
     global steps
@@ -330,6 +371,7 @@ def main():
     t_file = "table.txt" if args.tablefile else None
     p_path = "out_pictures" if args.outpicture else None
     tsc = 1 if args.tsc_en else 0
+    ignore_period = 1 if args.ignoreperiod else 0
 
     if p_path and not os.path.exists(p_path):
         os.makedirs(p_path)
@@ -362,34 +404,22 @@ def main():
     else:
         period_list = create_table(len(period_dict))
 
-    uos_file_data = get_data_list(uos_file, period_dict, "UOS")
-    sos_file_data = get_data_list(sos_file, period_dict, "SOS")
-    merge_data = uos_file_data + sos_file_data
-    print("merge data len: {}".format(len(merge_data)))
+    pick_and_sorted("ignore_period.log",uos_file,sos_file,None)
+    if ignore_period:
+        print("only create ignore_period.log, then exit")
+        exit()
 
-
-    print("start to sort ... ")
-
-    sorted_data = sorted(merge_data, key=lambda x:x["timestamp"])
-
-    print("sort done")
-
-    with open(c_file, "w") as f:
-        for d in sorted_data:
-            line = "{}:\t\t\t{}\t{}\n".format(d["period"], d["timestamp"], d["additional"])
-            f.write(line)
-
+    sorted_data = pick_and_sorted(c_file,uos_file,sos_file, period_dict)
+    print("store sorted data done")
 
     complete_data = find_whole_flow_data(period_dict, sorted_data)
-
-
-    print("store sorted data done")
 
     if d_file:
         with open(d_file, "w") as f:
             for d in complete_data:
                 line = "{}".format(d["fullinfo"])
                 f.write(line)
+
 
     print("clear exsit file...")
     if statistic_file and os.path.exists(statistic_file):
