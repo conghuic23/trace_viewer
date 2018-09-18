@@ -3,6 +3,7 @@
 import cairo
 from basic_method import Paint
 import time
+import copy
 
 MAX_WIDTH = 10000
 WISPACE = 500
@@ -26,7 +27,7 @@ class Domain():
         self.ncpu = 1
         self.n_axis = 20
         self.name = name
-        self.timeunit = 'us'
+        self.timeunit = timeunit
 
     def init(self, periods, table, period_dict):
         delta_list = []
@@ -40,7 +41,8 @@ class Domain():
             tmp["data"] = tmp_list
             start_key = [k for k, v in period_dict.items() if v == str(start_p)]
             end_key = [k for k, v in period_dict.items() if v == str(end_p)]
-            tmp["period"] = "[{}]{}-->{}".format(round(tmp_list[1]-tmp_list[0],1),
+            tmp["period"] = "[{}{}]{}-->{}".format(round(tmp_list[1]-tmp_list[0],1),
+                                                   self.timeunit,
                                                    start_key[0],
                                                    end_key[0])
             delta_list.append(tmp)
@@ -61,12 +63,12 @@ class Domain():
 
         # print time axis 5us
         # support axis [5, 50, 500, 5000]
-        pre_step = int(self.time/self.n_axis/5)
-        if pre_step < 10:
+        pre_step = int(self.time/self.n_axis)
+        if pre_step < 25:
             step = 5
-        elif pre_step < 100:
+        elif pre_step < 250:
             step = 50
-        elif pre_step < 1000:
+        elif pre_step < 2500:
             step = 500
         else:
             step = 5000
@@ -150,8 +152,10 @@ def draw(data):
     if not us2pixel:
         print("time period is large than 1s, will change unit from us to ms!!!")
         table = trans_us2ms(table)
+        print(table)
         timeunit = 'ms'
         us2pixel = round((MAX_WIDTH/table[1][-1]),1)
+        print(us2pixel, MAX_WIDTH, table[1][-1])
         data["delta"] = table
 
     print("us2pixel:",us2pixel)
@@ -179,15 +183,22 @@ def main():
     tmp = {}
     tmp["sos"] = [[1,2],[1,3],[1,4],[1,5],[3,5]]
     tmp["uos"] = [[1,2],[1,3],[1,4],[2,5],[3,5]]
-    table = [[0,0,0,0,0,0]
-             [0,10,12,15,68,100],
-             [0,30,31,32,33,35],
-             [0,30,31,32,33,35],
+    table = [[0,0,0,0,0,0],
+             [0,10,12,150,68,50000],
+             [0,30,31,32,303,35000],
+             [0,30,31,302,330,35000],
              [0,30,31,32,33,35],
              [0,30,31,32,33,35]]
 
     data["periods"] = tmp
     data["delta"] = table
+    data["period_dict"] = {
+        "period 1":"1",
+        "period 2":"2",
+        "period 3":"3",
+        "period 4":"4",
+        "period 5":"5"
+    }
     draw(data)
 
 if __name__ == '__main__':
