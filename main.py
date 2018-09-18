@@ -14,11 +14,16 @@ import gc
 
 linestart = "*****************************************"
 steps = 1
+CPU_FREQ = 1881
+tsc = 0
 
 def get_data_list(filename, add_dict, prefix):
     print("open file {}".format(filename))
     whole_list  = []
-    pa = re.compile(r'\d+.\d+: .+:')
+    if tsc:
+        pa = re.compile(r'\d+: .+:')
+    else:
+        pa = re.compile(r'\d+.\d+: .+:')
     with open(filename) as f:
         for line in f.readlines():
             tmp_dict={}
@@ -33,7 +38,8 @@ def get_data_list(filename, add_dict, prefix):
                         tmp_dict["timestamp"] = float(t[0])
                         whole_list.append(tmp_dict)
             except:
-                print("ERROR !!!")
+                print("ERROR !!! if use tsc timestamp,",
+                      "please add '-c' option!!")
                 print(line)
                 exit()
     print("get {} data".format(len(whole_list)))
@@ -62,7 +68,12 @@ def calculate_delta(data, start_s, end_s):
                         delta = {}
                         end = line["timestamp"]
                         # change s -> us, keep to 0.1us
-                        delta["value"] = round((end - start)*1000000,1)
+                        if tsc:
+                            # tsc
+                            delta["value"] = round((end-start)/CPU_FREQ,1);
+                        else:
+                            # second
+                            delta["value"] = round((end - start)*1000000,1)
                         delta["end_ts"] = end
                         delta_list.append(delta)
                         break
@@ -74,12 +85,18 @@ def calculate_delta(data, start_s, end_s):
 
 def print_data(data):
     tmp_data = sorted(data, key=lambda x:x["value"])
-    max_value = tmp_data[-1]["value"]
-    min_value = tmp_data[0]["value"]
-    sum = 0
-    for d in data:
-        sum = sum + d["value"]
-    average_value = round(sum/len(data), 1)
+    try:
+        max_value = tmp_data[-1]["value"]
+        min_value = tmp_data[0]["value"]
+        sum = 0
+        for d in data:
+            sum = sum + d["value"]
+        average_value = round(sum/len(data), 1)
+    except:
+        print("could not print anything, data is None")
+        print("please check xxx###xxx file, make sure periods json is correct")
+        exit()
+
 
     print("\033[0;32mLEN {}\nMAX {}us\nMIN {}us\nAVERAGE {}us\n\033[0m".
           format(len(data),
@@ -213,6 +230,12 @@ def parse_init():
                         dest="outpicture",
                         help="enable output all png picture for delta \
                         data in out_picture/xxx")
+    parser.add_argument('-c', '--tsc',
+                        action='store_true',
+                        default=False,
+                        required=False,
+                        dest="tsc_en",
+                        help="timestamp is tsc")
     return parser
 
 def check_period_value(period_list, period_dict):
@@ -293,6 +316,7 @@ def prepare_draw_data(table, period, period_dict):
 
 def main():
     global steps
+    global tsc
     parser = parse_init()
     args = parser.parse_args()
 
@@ -305,6 +329,8 @@ def main():
     error_file = "error.log" if args.errorfile else None
     t_file = "table.txt" if args.tablefile else None
     p_path = "out_pictures" if args.outpicture else None
+    tsc = 1 if args.tsc_en else 0
+
     if p_path and not os.path.exists(p_path):
         os.makedirs(p_path)
 
@@ -345,15 +371,17 @@ def main():
     print("start to sort ... ")
 
     sorted_data = sorted(merge_data, key=lambda x:x["timestamp"])
-    del merge_data
-    gc.collect()
 
     print("sort done")
 
+    with open(c_file, "w") as f:
+        for d in sorted_data:
+            line = "{}:\t\t\t{}\t{}\n".format(d["period"], d["timestamp"], d["additional"])
+            f.write(line)
+
+
     complete_data = find_whole_flow_data(period_dict, sorted_data)
 
-    del sorted_data
-    gc.collect()
 
     print("store sorted data done")
 
@@ -362,11 +390,6 @@ def main():
             for d in complete_data:
                 line = "{}".format(d["fullinfo"])
                 f.write(line)
-
-    with open(c_file, "w") as f:
-        for d in complete_data:
-            line = "{}:\t\t\t{}\t{}\n".format(d["period"], d["timestamp"], d["additional"])
-            f.write(line)
 
     print("clear exsit file...")
     if statistic_file and os.path.exists(statistic_file):

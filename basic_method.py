@@ -1,6 +1,6 @@
 import cairo
 
-TEXT_SIZE = 120
+TEXT_SIZE = 50
 TimeLineSolidColor = [0.75, 0.75, 0.75]
 TimeLineDottedColor = [0.88, 0.88, 0.88]
 ZoneColor = [0.8, 0.90, 1]
@@ -35,7 +35,7 @@ class Paint():
 
     def paint_dotted_line(self, sx, sy, ex, ey):
         self.ctx.set_source_rgb(*TimeLineDottedColor)
-        self.ctx.set_line_width(10.0)
+        self.ctx.set_line_width(5.0)
         self.ctx.move_to(sx, sy)
         self.ctx.line_to(ex, ey)
         self.ctx.stroke()
@@ -47,13 +47,14 @@ class Paint():
         self.ctx.line_to(ex, ey)
         self.ctx.stroke()
 
-    def paint_matrix_with_colume(self,x,y,dx,dy):
+    def paint_matrix_with_colume(self,x,y,dx,dy,step):
         self.ctx.set_source_rgb(*TimeLineSolidColor)
         self.ctx.set_line_width(15.0)
         self.ctx.rectangle(x, y, dx, dy)
         self.ctx.stroke()
-        for i in range(1, int(dx/self.u2p)+1):
-            x_l = i*self.u2p + x
+        print(step,int(dx/step)*5+1)
+        for i in range(1, int(dx/step)*5+1):
+            x_l = i*(step/5) + x
             y_l = y
             xe_l = x_l
             ye_l= y + dy

@@ -4,22 +4,29 @@ import cairo
 from basic_method import Paint
 import time
 
+MAX_WIDTH = 10000
+WISPACE = 500
+HISPACE = 300
 TITLE = 300
 PERIODPIXEL = 300
-TITLESPACE = 200
-TIMEALXE = 200
-US2PIXEL = 100
+TITLESPACE = 20
+TIMEALXE = 100
 SOS2UOSPIXEL = 200
 PERIOD_SIZE = 70
 
+us2pixel = 10
+
+
+
 class Domain():
-    def __init__(self, paint, sx, sy, name):
+    def __init__(self, paint, sx, sy, name, timeunit):
         self.pat = paint
         self.win_sx = sx
         self.win_sy = sy
         self.ncpu = 1
-        self.time_axis_step = 5
+        self.n_axis = 20
         self.name = name
+        self.timeunit = 'us'
 
     def init(self, periods, table, period_dict):
         delta_list = []
@@ -33,44 +40,55 @@ class Domain():
             tmp["data"] = tmp_list
             start_key = [k for k, v in period_dict.items() if v == str(start_p)]
             end_key = [k for k, v in period_dict.items() if v == str(end_p)]
-            tmp["period"] = "[{}us]{}-->{}".format(round(tmp_list[1]-tmp_list[0],1),
+            tmp["period"] = "[{}]{}-->{}".format(round(tmp_list[1]-tmp_list[0],1),
                                                    start_key[0],
                                                    end_key[0])
             delta_list.append(tmp)
 
         self.delta_list = delta_list
         self.nperiod = len(delta_list)
-        self.utime = int(table[1][-1])
+        self.time = int(table[1][-1])
         self.win_hi = self.ncpu * self.nperiod * PERIODPIXEL
-        self.win_wi = self.utime * US2PIXEL
+        self.win_wi = self.time * us2pixel
 
 
     def fill(self):
         # print title
-        title_s = "{} time period".format(self.name)
+        title_s = "{} time period ({})".format(self.name, self.timeunit)
         sx = self.win_sx - 60
         sy = self.win_sy - TIMEALXE
-        self.pat.paint_text(sx, sy, title_s)
+        self.pat.paint_text_size(sx, sy, title_s, 100)
 
         # print time axis 5us
-        step = self.time_axis_step
-        nline = list(range(0, round(self.utime/step)))
+        # support axis [5, 50, 500, 5000]
+        pre_step = int(self.time/self.n_axis/5)
+        if pre_step < 10:
+            step = 5
+        elif pre_step < 100:
+            step = 50
+        elif pre_step < 1000:
+            step = 500
+        else:
+            step = 5000
+
+        nline = list(range(0, round(self.time/step)))
         for x in nline:
-            sx = self.win_sx + nline.index(x) * US2PIXEL * step - 60 # -6 move text to centor
+            sx = self.win_sx + nline.index(x) * us2pixel * step - 60 # -6 move text to centor
             sy = self.win_sy - 30
-            self.pat.paint_text(sx, sy, "{}us".format(x*5))
+            self.pat.paint_text(sx, sy, "{}".format(x*step))
         self.pat.paint_matrix_with_colume(self.win_sx,
                                           self.win_sy,
                                           self.win_wi,
-                                          self.win_hi)
+                                          self.win_hi,
+                                          step*us2pixel)
         for d in self.delta_list:
             x = d["data"]
             sx = self.win_sx +  \
-                x[0] * US2PIXEL
+                x[0] * us2pixel
             sy = self.win_sy + 50 +  \
                 self.delta_list.index(d) *  \
                 PERIODPIXEL # 1us = 10 point
-            wi = (x[1] - x[0]) * US2PIXEL
+            wi = (x[1] - x[0]) * us2pixel
             hi = PERIODPIXEL - 100 # 30-10=20
             self.pat.paint_matrix(sx,sy,wi,hi)
             self.pat.paint_text_size(sx+20, sy+hi-60, d["period"], PERIOD_SIZE)
@@ -84,19 +102,19 @@ class Painter():
         self.sos = None
         self.uos = None
 
-    def init(self, data):
+    def init(self, data, timeunit):
         print("Paint sos")
         periods = data["periods"]
         sx = 100
         sy = TITLESPACE + TIMEALXE + TITLE
-        sos = Domain(self.pat, sx, sy , "SOS")
+        sos = Domain(self.pat, sx, sy , "SOS", timeunit)
         sos.init(periods["sos"], data["delta"], data["period_dict"])
         self.sos = sos
 
         print("Paint uos")
         end_y = sos.get_end_y()
         sy = end_y + TITLESPACE + TIMEALXE + SOS2UOSPIXEL
-        uos = Domain(self.pat, sx, sy, "UOS")
+        uos = Domain(self.pat, sx, sy, "UOS", timeunit)
         uos.init(periods["uos"], data["delta"], data["period_dict"])
         self.uos = uos
 
@@ -112,14 +130,34 @@ class Painter():
         sx = self.pat.wi - 1500
         sy = self.pat.hi - 100
         time_s = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
-        self.pat.paint_text(sx, sy, time_s)
+        self.pat.paint_text_size(sx, sy, time_s, 100)
 
+def trans_us2ms(table):
+    table_ms = copy.deepcopy(table)
+    for i in range(1,len(table)):
+        for j in range(1,len(table[0])):
+            table_ms[i][j]=round(table[i][j]/1000,1)
+    return table_ms
 
 def draw(data):
+    global us2pixel
+
     table = data["delta"]
-    wi = table[1][-1]*US2PIXEL + 500 # add 50 pixel
+    wi = MAX_WIDTH + WISPACE
+    us2pixel = round((MAX_WIDTH/table[1][-1]),1)
+    timeunit = 'us'
+
+    if not us2pixel:
+        print("time period is large than 1s, will change unit from us to ms!!!")
+        table = trans_us2ms(table)
+        timeunit = 'ms'
+        us2pixel = round((MAX_WIDTH/table[1][-1]),1)
+        data["delta"] = table
+
+    print("us2pixel:",us2pixel)
+
     np = len(data["periods"]["sos"]) + len((data["periods"]["uos"]))
-    hi = np*PERIODPIXEL + TITLESPACE*2 + TIMEALXE*2 + SOS2UOSPIXEL + TITLE + 300 # add 30 pixel
+    hi = np*PERIODPIXEL + TITLESPACE*2 + TIMEALXE*2 + SOS2UOSPIXEL + TITLE + HISPACE# add 30 pixel
 
     print("draw table:",wi,hi)
     wi = int(wi)
@@ -127,9 +165,9 @@ def draw(data):
     surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, wi, hi)
     ctx = cairo.Context(surface)
     pat = Paint(ctx)
-    pat.init(wi, hi, US2PIXEL)
+    pat.init(wi, hi, us2pixel)
     ptr = Painter(pat)
-    ptr.init(data)
+    ptr.init(data, timeunit)
     ptr.start_painting()
     # cpu number should provide
     surface.write_to_png("time_periods.png")
