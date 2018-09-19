@@ -52,7 +52,7 @@ def get_data_list(filename, add_dict, prefix):
                 print(e)
                 print("ERROR !!! if use tsc timestamp,",
                       "please add '-c' option!!")
-                exit()
+                sys.exit()
     print("get {} data".format(len(whole_list)))
     return whole_list
 
@@ -106,7 +106,7 @@ def print_data(data):
     except:
         print("could not print anything, data is None")
         print("please check xxx###xxx file, make sure periods json is correct")
-        exit()
+        sys.exit()
 
 
     print("\033[0;32mLEN {}\nMAX {}us\nMIN {}us\nAVERAGE {}us\n\033[0m".
@@ -376,7 +376,7 @@ def main():
     pick_and_sorted("ignore_period.log",uos_file,sos_file,None)
     if ignore_period:
         print("only create ignore_period.log, then exit")
-        exit()
+        sys.exit()
 
     if p_path and not os.path.exists(p_path):
         os.makedirs(p_path)
@@ -390,13 +390,13 @@ def main():
         info_dict = json.loads(f.read())
         if info_dict is None:
             print("please prepare period strings first!")
-            exit()
+            sys.exit()
         period_dict = info_dict.get("periods", None)
         draw_periods = info_dict.get("draw_periods", None)
         if period_dict is None:
             print("please check json file, make sure 'periods' \
                   is provided")
-            exit()
+            sys.exit()
         if draw_periods is None:
             print("WARNING: as draw_periods not provided, time period table \
                   will not create!!")
@@ -405,7 +405,7 @@ def main():
 
     if period_list is not None:
         if check_period_value(period_list, period_dict) == False :
-            exit()
+            sys.exit()
     else:
         period_list = create_table(len(period_dict))
 
