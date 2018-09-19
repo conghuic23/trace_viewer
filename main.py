@@ -203,7 +203,7 @@ def parse_init():
                         required=True,
                         help='sos file path')
     parser.add_argument('-j', '--json',
-                        required=True,
+                        required=False,
                         help='period string json file')
     parser.add_argument('-p', '--period',
                         nargs='+',
@@ -373,6 +373,11 @@ def main():
     tsc = 1 if args.tsc_en else 0
     ignore_period = 1 if args.ignoreperiod else 0
 
+    pick_and_sorted("ignore_period.log",uos_file,sos_file,None)
+    if ignore_period:
+        print("only create ignore_period.log, then exit")
+        exit()
+
     if p_path and not os.path.exists(p_path):
         os.makedirs(p_path)
 
@@ -403,11 +408,6 @@ def main():
             exit()
     else:
         period_list = create_table(len(period_dict))
-
-    pick_and_sorted("ignore_period.log",uos_file,sos_file,None)
-    if ignore_period:
-        print("only create ignore_period.log, then exit")
-        exit()
 
     sorted_data = pick_and_sorted(c_file,uos_file,sos_file, period_dict)
     print("store sorted data done")
