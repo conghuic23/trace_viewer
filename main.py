@@ -24,7 +24,7 @@ def get_data_list(filename, add_dict, prefix):
         pa = re.compile(r'\d+: .+:')
     else:
         pa = re.compile(r'\d+.\d+: .+:')
-    with open(filename) as f:
+    with open(filename, 'r') as f:
         for line in f.readlines():
             tmp_dict={}
             try:
@@ -62,36 +62,28 @@ def record_maxvalue_timpstamp(last, current):
 def record_minvalue_timpstamp(last, current):
     return last if last < current else current
 
-def calculate_delta(data, start_s, end_s):
-    data_iter = iter(data)
+def calculate_delta(data, start_s, end_s, len_s):
     delta_list = []
-    error_list = []
     max_steps = steps
 
-    try:
-        while 1:
-            line = next(data_iter)
-            if start_s == line["additional"]:
-                start = line["timestamp"]
-                for i in range(0,max_steps):
-                    line = next(data_iter)
-                    if end_s in line["additional"]:
-                        delta = {}
-                        end = line["timestamp"]
-                        # change s -> us, keep to 0.1us
-                        if tsc:
-                            # tsc
-                            delta["value"] = round((end-start)/CPU_FREQ,1);
-                        else:
-                            # second
-                            delta["value"] = round((end - start)*1000000,1)
-                        delta["end_ts"] = end
-                        delta_list.append(delta)
-                        break
-                else:
-                    error_list.append(start)
-    except StopIteration as e:
-        return delta_list, error_list
+    line = 0
+    while line < (len(data)-len_s):
+        start = data[line+start_s]["timestamp"]
+        end = data[line+end_s]["timestamp"]
+        delta = {}
+        # change s -> us, keep to 0.1us
+        if tsc:
+            # tsc
+            delta["value"] = round((end-start)/CPU_FREQ,1);
+        else:
+            # second
+            delta["value"] = round((end - start)*1000000,1)
+        delta["end_ts"] = end
+        delta_list.append(delta)
+
+        line += len_s
+    return delta_list
+
 
 
 def print_data(data):
@@ -205,11 +197,6 @@ def parse_init():
     parser.add_argument('-j', '--json',
                         required=False,
                         help='period string json file')
-    parser.add_argument('-p', '--period',
-                        nargs='+',
-                        required=False,
-                        default = None,
-                        help='-p 1,2 3,10 ...')
     parser.add_argument('-d', '--detaillog',
                         action='store_true',
                         default=False,
@@ -255,29 +242,10 @@ def parse_init():
                         help="ignore period in json file, store whole sorted log, then exit!!")
     return parser
 
-def check_period_value(period_list, period_dict):
-    for p in period_list:
-        a,b= p.split(",")
-        try:
-            if int(a) < int(b):
-                result1 = [k for k,v in period_dict.items() if a==v]
-                result2 = [k for k,v in period_dict.items() if b==v]
-                if result1 == [] or result2 == []:
-                    print("period {},{} not support!".format(a,b))
-                    print("please check {}".format(period_dict))
-                    return False
-            else:
-                print("'end' should bigger than 'start'!")
-                return False
-        except:
-            print("please check format for period list!")
-            return False
-    return True
-
 def create_table(size):
     table = []
-    for i in range(1, size+1):
-        for j in range(1, size+1):
+    for i in range(0, size):
+        for j in range(0, size):
             if j>i:
                 table.append("{},{}".format(i,j))
     return table
@@ -295,29 +263,23 @@ def save_table(size, table, table_file):
     with open(table_file,'w') as f:
         f.write(table_txt)
 
-def find_whole_flow_data(period_dict, data):
-    iter_data = iter(data)
+def find_whole_flow_data(period_spec, data):
     new_data = []
-    val = []
-    for k in period_dict.keys():
-        val.append(int(period_dict[k]))
-    val.sort()
-    nval = [str(x) for x in val]
-    print(nval)
+    print(period_spec)
 
-    step = len(nval)  # step, from 1
+    step = len(period_spec)  # step, from 1
     raw_add = [x["additional"] for x in data]
     raw_add_len = len(raw_add)  # get data size
-    start_l = [x[0] for x in enumerate(raw_add) if x[1] == nval[0]] # get all start point
+    start_l = [x[0] for x in enumerate(raw_add) if x[1] == period_spec[0]] # get all start point
     # get all index which meet condition
     all_index = [list(range(x,x+step)) for x in start_l
-                 if x+step < raw_add_len and raw_add[x:x+step] == nval]
+                 if x+step < raw_add_len and raw_add[x:x+step] == period_spec]
     print("all_index got")
     indexs = [n for a in all_index for n in a]
     new_data = [data[x] for x in indexs]
     return new_data
 
-def prepare_draw_data(table, period, period_dict):
+def prepare_draw_data(table, period, period_dict, period_spec):
     data = {}
     size = len(table)
     n_table = [[0 for i in range(size)] for i in range(size)]
@@ -328,11 +290,12 @@ def prepare_draw_data(table, period, period_dict):
     data["delta"] = n_table
     data["periods"] = period
     data["period_dict"] = period_dict
+    data["period_spec"] = period_spec
     return data
 
 def pick_and_sorted(c_file, uos_file, sos_file, period_dict):
-    uos_file_data = get_data_list(uos_file, period_dict, "UOS")
-    sos_file_data = get_data_list(sos_file, period_dict, "SOS")
+    uos_file_data = get_data_list(uos_file, period_dict, "[UOS] ")
+    sos_file_data = get_data_list(sos_file, period_dict, "[SOS] ")
 
     merge_data = uos_file_data + sos_file_data
     print("merge data len: {}".format(len(merge_data)))
@@ -365,16 +328,14 @@ def main():
     sos_file = args.sosfile
     d_file = "detail.log" if args.detaillog else None
     json_file = args.json
-    period_list = args.period
     statistic_file = "statistic.log" if args.statisticfile else None
-    error_file = "error.log" if args.errorfile else None
     t_file = "table.txt" if args.tablefile else None
     p_path = "out_pictures" if args.outpicture else None
     tsc = 1 if args.tsc_en else 0
     ignore_period = 1 if args.ignoreperiod else 0
 
-    pick_and_sorted("ignore_period.log",uos_file,sos_file,None)
     if ignore_period:
+        pick_and_sorted("ignore_period.log",uos_file,sos_file,None)
         print("only create ignore_period.log, then exit")
         sys.exit()
 
@@ -392,27 +353,35 @@ def main():
             print("please prepare period strings first!")
             sys.exit()
         period_dict = info_dict.get("periods", None)
-        draw_periods = info_dict.get("draw_periods", None)
+        period_spec = info_dict.get("spec", None)
+        draw_index = info_dict.get("draw_index", None)
         if period_dict is None:
             print("please check json file, make sure 'periods' \
                   is provided")
             sys.exit()
-        if draw_periods is None:
-            print("WARNING: as draw_periods not provided, time period table \
+        if draw_index is None:
+            print("WARNING: as draw_index not provided, time period table \
                   will not create!!")
+        if period_spec is None:
+            print("will use period seq get from period_dict")
 
-    steps = len(period_dict)
 
-    if period_list is not None:
-        if check_period_value(period_list, period_dict) == False :
-            sys.exit()
+    if period_spec is None:
+        steps = len(period_dict)
+        period_index = create_table(len(period_dict))
+        val = []
+        for k in period_dict.keys():
+            val.append(int(period_dict[k]))
+        val.sort()
+        period_spec = [str(x) for x in val]
     else:
-        period_list = create_table(len(period_dict))
+        steps = len(period_spec)
+        period_index = create_table(len(period_spec))
 
     sorted_data = pick_and_sorted(c_file,uos_file,sos_file, period_dict)
     print("store sorted data done")
 
-    complete_data = find_whole_flow_data(period_dict, sorted_data)
+    complete_data = find_whole_flow_data(period_spec, sorted_data)
 
     if d_file:
         with open(d_file, "w") as f:
@@ -424,31 +393,30 @@ def main():
     print("clear exsit file...")
     if statistic_file and os.path.exists(statistic_file):
         os.remove(statistic_file)
-    if error_file and os.path.exists(error_file):
-        os.remove(error_file)
 
     print("start to calculate...")
-    table = [[0 for i in range(len(period_dict)+1)] for i in range(len(period_dict)+1)]
-    for p in period_list:
+    table = [[0 for i in range(len(period_spec)+1)] for i in range(len(period_spec)+1)]
+    for p in period_index:
         print(linestart)
         print(p)
         a,b = p.split(",")
-        delta, error = calculate_delta(complete_data,a,b)
-        a_name = [k for k,v in period_dict.items() if a==v]
-        b_name = [k for k,v in period_dict.items() if b==v]
-        per = "{}({}) --> {}({})".format(b_name[0],b,a_name[0],a)
-        print("get delat value for \033[4;37;44m{},{}\033[0m\n".format(a,b))
+        a = int(a)
+        b= int(b)
+        delta = calculate_delta(complete_data,a,b,len(period_spec))
+        a_name = [k for k,v in period_dict.items() if period_spec[a]==v]
+        b_name = [k for k,v in period_dict.items() if period_spec[b]==v]
+        per = "{}({}_{}) --> {}({}_{})".format(b_name[0],period_spec[b],b,a_name[0],period_spec[a],a)
+        print("get delat value for index \033[4;37;44m{},{}\033[0m\n".format(a,b))
         print('\033[4;36;40m'+per+'\033[0m\n')
-        table[int(a)][int(b)]=print_data(delta)
+        table[a+1][b+1]=print_data(delta)
         save_statistic_log(statistic_file, delta, complete_data, per, b)
-        save_error_log(error_file, error, complete_data, per, b)
-        save_picture("{}_{}".format(a,b), delta, p_path)
+        save_picture("{}_{}-{}_{}".format(period_spec[a],a,period_spec[b],b), delta, p_path)
     if t_file:
-        save_table(len(period_dict), table, t_file)
+        save_table(len(period_spec), table, t_file)
     # create a time axls table
-    if draw_periods:
+    if draw_index:
         print("draw periods table")
-        data = prepare_draw_data(table, draw_periods, period_dict)
+        data = prepare_draw_data(table, draw_index, period_dict, period_spec)
         draw(data)
 
 if __name__ == "__main__":

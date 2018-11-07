@@ -37,3 +37,25 @@ prepare period_string.json
 
     > **Case**: want to get each period's wave picture.
     **Result**: create n*n xx_xx.png and time_periods.png.
+
+## json file
+
+* "periods": {"key": "shortname"}
+
+    "key" is the unite key string in the log.
+    "shrotname": is the short name for "key".
+
+* "spec": ["shortname","sortname",...]
+
+    define the whole sequence for the log, this will be used to pick all log which match the "spec" defined periods in order.
+
+* "draw_index": {"sos", [index in "spec", index in "spec"]} 
+
+    "sos" or "uos" are support.
+    range of index is [0, length of "spec")
+
+
+
+## make trace_viewer
+
+pyinstaller -F main.py -n trace_viewer

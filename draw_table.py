@@ -29,18 +29,18 @@ class Domain():
         self.name = name
         self.timeunit = timeunit
 
-    def init(self, periods, table, period_dict):
+    def init(self, periods, table, period_dict, period_spec):
         delta_list = []
         for x in periods:
             tmp = {}
             tmp_list = []
             start_p = x[0]
             end_p = x[1]
-            tmp_list.append(table[1][start_p])
-            tmp_list.append(table[1][end_p])
+            tmp_list.append(table[1][start_p+1])
+            tmp_list.append(table[1][end_p+1])
             tmp["data"] = tmp_list
-            start_key = [k for k, v in period_dict.items() if v == str(start_p)]
-            end_key = [k for k, v in period_dict.items() if v == str(end_p)]
+            start_key = [k for k, v in period_dict.items() if v == period_spec[start_p]]
+            end_key = [k for k, v in period_dict.items() if v == period_spec[end_p]]
             tmp["period"] = "[{}{}]{}-->{}".format(round(tmp_list[1]-tmp_list[0],1),
                                                    self.timeunit,
                                                    start_key[0],
@@ -110,14 +110,14 @@ class Painter():
         sx = 100
         sy = TITLESPACE + TIMEALXE + TITLE
         sos = Domain(self.pat, sx, sy , "SOS", timeunit)
-        sos.init(periods["sos"], data["delta"], data["period_dict"])
+        sos.init(periods["sos"], data["delta"], data["period_dict"], data["period_spec"])
         self.sos = sos
 
         print("Paint uos")
         end_y = sos.get_end_y()
         sy = end_y + TITLESPACE + TIMEALXE + SOS2UOSPIXEL
         uos = Domain(self.pat, sx, sy, "UOS", timeunit)
-        uos.init(periods["uos"], data["delta"], data["period_dict"])
+        uos.init(periods["uos"], data["delta"], data["period_dict"], data["period_spec"])
         self.uos = uos
 
 
@@ -159,6 +159,11 @@ def draw(data):
         data["delta"] = table
 
     print("us2pixel:",us2pixel)
+    if "uos" not in data["periods"].keys():
+        data["periods"]["uos"] = []
+
+    if "sos" not in data["periods"].keys():
+        data["periods"]["sos"] = []
 
     np = len(data["periods"]["sos"]) + len((data["periods"]["uos"]))
     hi = np*PERIODPIXEL + TITLESPACE*2 + TIMEALXE*2 + SOS2UOSPIXEL + TITLE + HISPACE# add 30 pixel
