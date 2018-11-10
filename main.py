@@ -96,8 +96,8 @@ def print_data(data):
             sum = sum + d["value"]
         average_value = round(sum/len(data), 1)
     except:
-        print("could not print anything, data is None")
-        print("please check xxx###xxx file, make sure periods json is correct")
+        print("ERROR: could not print anything, data is None")
+        print("ERROR: please check xxx###xxx file, make sure periods json is correct")
         sys.exit()
 
 
@@ -125,7 +125,7 @@ def wirte_log_with_steps(f, data_list, wholeinfo, end_s):
                     f.write("###### right here! #######\n")
                 f.write(wholeinfo[x]["fullinfo"])
 
-
+"""
 def save_statistic_log(filename, data, wholeinfo, period, end_s):
     if filename is None:
         return
@@ -159,16 +159,7 @@ def save_statistic_log(filename, data, wholeinfo, period, end_s):
         f.write("\n\nmix value {}: num:{} \n".format(min_value["value"],
                                                  len(min_list)))
         wirte_log_with_steps(f, [min_list[0]], wholeinfo, end_s)
-
-
-def save_error_log(filename, data, wholeinfo, period, end_s):
-    if filename is None:
-        return
-
-    with open(filename, "a+") as f:
-        f.write("@ {} @\n".format(period))
-        wirte_log_with_steps(f, data, wholeinfo, end_s)
-
+"""
 
 def save_picture(name, data, p_path):
     if len(data) == 0 or p_path is None:
@@ -203,12 +194,6 @@ def parse_init():
                         required=False,
                         dest="detaillog",
                         help='enable detail info store detail.log')
-    parser.add_argument('-f', '--statisticfile',
-                        action='store_true',
-                        default=False,
-                        required=False,
-                        dest="statisticfile",
-                        help='enable statistics info store statistics.log')
     parser.add_argument('-e', '--errorfile',
                         action='store_true',
                         default=False,
@@ -242,7 +227,7 @@ def parse_init():
                         help="ignore period in json file, store whole sorted log, then exit!!")
     return parser
 
-def create_table(size):
+def generate_period_pairs(size):
     table = []
     for i in range(0, size):
         for j in range(0, size):
@@ -251,13 +236,14 @@ def create_table(size):
     return table
 
 def save_table(size, table, table_file):
-    li = range(1, size+1)
+    print("size:",size)
+    li = range(0, size)
     li = [str(x) for x in li]
     title = ['runtime/us'] + li
     x = PrettyTable(title)
     x.padding_width =1
     for i in range(1, size+1):
-        table[i][0] = i
+        table[i][0] = i-1
         x.add_row(table[i][:])
     table_txt = x.get_string()
     with open(table_file,'w') as f:
@@ -274,7 +260,6 @@ def find_whole_flow_data(period_spec, data):
     # get all index which meet condition
     all_index = [list(range(x,x+step)) for x in start_l
                  if x+step < raw_add_len and raw_add[x:x+step] == period_spec]
-    print("all_index got")
     indexs = [n for a in all_index for n in a]
     new_data = [data[x] for x in indexs]
     return new_data
@@ -318,6 +303,113 @@ def pick_and_sorted(c_file, uos_file, sos_file, period_dict):
 
     return sorted_data
 
+def check_spec(spec, period_dict):
+    periods_list = []
+    for k in period_dict.keys():
+        periods_list.append(period_dict[k])
+    for s in spec:
+        if s not in periods_list:
+            print("ERROR: '{}' is not support in 'periods'".format(s))
+            return -1
+    return 0
+
+
+def check_draw_index(draw_index, periods, maxindex):
+    avai_idx = range(0, maxindex)
+    for k in draw_index.keys():
+        for idx in draw_index[k]:
+            if len(idx) != 2 or \
+                (idx[0] not in avai_idx) or \
+                (idx[1] not in avai_idx):
+                print("ERROR: index {} is not in range of 'spec'!".format(idx))
+                return -1
+
+    return 0
+
+def load_json(json_file):
+    with open(json_file, "r", encoding='utf-8') as f:
+        info_dict = json.loads(f.read())
+        if info_dict is None:
+            print("ERROR: please prepare period strings first!")
+            sys.exit()
+        period_dict = info_dict.get("periods", None)
+        period_spec = info_dict.get("spec", None)
+        draw_index = info_dict.get("draw_index", None)
+        if period_dict is None:
+            print("ERROR: please check json file, make sure 'periods' \
+                  is provided")
+            sys.exit()
+
+        if period_spec is None:
+            print("WARNING: as 'spec' not provided,",
+                  "will use periods from period_dict")
+            # create a period_spec from period_dict
+            val = []
+            for k in period_dict.keys():
+                val.append(int(period_dict[k]))
+            val.sort()
+            period_spec = [str(x) for x in val]
+            print("auto generate spec: {}".format(period_spec))
+
+        if check_spec(period_spec, period_dict):
+                sys.exit()
+
+        if draw_index is None:
+            print("WARNING: as draw_index not provided, time period table",
+                  "will not create!!")
+        else:
+            if check_draw_index(draw_index, period_dict, len(period_spec)):
+                sys.exit()
+
+    return period_dict, period_spec, draw_index
+
+
+"""
+processing will create a n*n table, statistic all delta between each period
+n is the length of period_spec + 1
++ 1  is because the first raw and column are use to save period number.
+
+table[]=
+---------------------------------------------
+runtime(us)   |   0|   1|  2|  3|  4|  5|  6|
+--------------+----+----+---+---+---+---+---|
+0             |   0|   x|  x|  x|  x|  x|  x|
+--------------+----+----+---+---+---+---+---|
+1             |    |   0|  x|  x|  x|  x|  x|
+--------------+----+----+---+---+---+---+---|
+2             |    |    |  0|  x|  x|  x|  x|
+--------------+----+----+---+---+---+---+---|
+3             |    |    |   |  0|  x|  x|  x|
+--------------+----+----+---+---+---+---+---|
+4             |    |    |   |   |  0|  x|  x|
+--------------+----+----+---+---+---+---+---|
+5             |    |    |   |   |   |  0|  x|
+--------------+----+----+---+---+---+---+---|
+6             |    |    |   |   |   |   |  0|
+---------------------------------------------
+table[2][1] = index_1_timestamp - index_0_timestamp
+"""
+def processing(period_spec, period_index, period_dict, complete_data, p_path):
+    table = [[0 for i in range(len(period_spec)+1)] for i in range(len(period_spec)+1)]
+    print("table: {}*{}".format(len(table),len(table)))
+    for p in period_index:
+        print(linestart)
+        print(p)
+        a,b = p.split(",")
+        a = int(a)
+        b= int(b)
+        delta = calculate_delta(complete_data,a,b,len(period_spec))
+        a_name = [k for k,v in period_dict.items() if period_spec[a]==v]
+        b_name = [k for k,v in period_dict.items() if period_spec[b]==v]
+        per = "{}({}_{}) --> {}({}_{})".format(b_name[0],period_spec[b],b,a_name[0],period_spec[a],a)
+        print("get delat value for index \033[4;37;44m{},{}\033[0m\n".format(a,b))
+        print('\033[4;36;40m'+per+'\033[0m\n')
+        table[a+1][b+1]=print_data(delta)
+        save_picture("{}_{}-{}_{}".format(period_spec[a],a,period_spec[b],b), delta, p_path)
+
+    return table
+
+
 def main():
     global steps
     global tsc
@@ -328,7 +420,6 @@ def main():
     sos_file = args.sosfile
     d_file = "detail.log" if args.detaillog else None
     json_file = args.json
-    statistic_file = "statistic.log" if args.statisticfile else None
     t_file = "table.txt" if args.tablefile else None
     p_path = "out_pictures" if args.outpicture else None
     tsc = 1 if args.tsc_en else 0
@@ -344,73 +435,34 @@ def main():
 
 
     c_file = "{}####{}".format(uos_file, sos_file)
-    print("merge file {} and {}".format(uos_file, sos_file))
 
-    print("get period string from json file {}".format(json_file))
-    with open(json_file, "r", encoding='utf-8') as f:
-        info_dict = json.loads(f.read())
-        if info_dict is None:
-            print("please prepare period strings first!")
-            sys.exit()
-        period_dict = info_dict.get("periods", None)
-        period_spec = info_dict.get("spec", None)
-        draw_index = info_dict.get("draw_index", None)
-        if period_dict is None:
-            print("please check json file, make sure 'periods' \
-                  is provided")
-            sys.exit()
-        if draw_index is None:
-            print("WARNING: as draw_index not provided, time period table \
-                  will not create!!")
-        if period_spec is None:
-            print("will use period seq get from period_dict")
+    print("load json file {} ...".format(json_file))
+    period_dict, period_spec, draw_index = load_json(json_file)
+    period_index = generate_period_pairs(len(period_spec))
 
-
-    if period_spec is None:
-        steps = len(period_dict)
-        period_index = create_table(len(period_dict))
-        val = []
-        for k in period_dict.keys():
-            val.append(int(period_dict[k]))
-        val.sort()
-        period_spec = [str(x) for x in val]
-    else:
-        steps = len(period_spec)
-        period_index = create_table(len(period_spec))
-
+    print("pick records from log file and sort...")
     sorted_data = pick_and_sorted(c_file,uos_file,sos_file, period_dict)
-    print("store sorted data done")
+    print("pick and sorted done")
 
+    print("find whole records match:  {}".format(period_spec))
     complete_data = find_whole_flow_data(period_spec, sorted_data)
+    if len(complete_data) != 0:
+        print("find {} sets of records :)")
+    else:
+        print("ERROR: no complete periods, please check {} :(".format(c_file))
+        sys.exit()
 
+
+    # save complete data
     if d_file:
         with open(d_file, "w") as f:
             for d in complete_data:
                 line = "{}".format(d["fullinfo"])
                 f.write(line)
 
-
-    print("clear exsit file...")
-    if statistic_file and os.path.exists(statistic_file):
-        os.remove(statistic_file)
-
     print("start to calculate...")
-    table = [[0 for i in range(len(period_spec)+1)] for i in range(len(period_spec)+1)]
-    for p in period_index:
-        print(linestart)
-        print(p)
-        a,b = p.split(",")
-        a = int(a)
-        b= int(b)
-        delta = calculate_delta(complete_data,a,b,len(period_spec))
-        a_name = [k for k,v in period_dict.items() if period_spec[a]==v]
-        b_name = [k for k,v in period_dict.items() if period_spec[b]==v]
-        per = "{}({}_{}) --> {}({}_{})".format(b_name[0],period_spec[b],b,a_name[0],period_spec[a],a)
-        print("get delat value for index \033[4;37;44m{},{}\033[0m\n".format(a,b))
-        print('\033[4;36;40m'+per+'\033[0m\n')
-        table[a+1][b+1]=print_data(delta)
-        save_statistic_log(statistic_file, delta, complete_data, per, b)
-        save_picture("{}_{}-{}_{}".format(period_spec[a],a,period_spec[b],b), delta, p_path)
+    table = processing(period_spec, period_index, period_dict, complete_data, p_path)
+    # save table.txt
     if t_file:
         save_table(len(period_spec), table, t_file)
     # create a time axls table
