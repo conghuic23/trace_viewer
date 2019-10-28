@@ -1,40 +1,28 @@
 {
 "periods":
 	{
-	    	"req_op":"1",
-	    	"before kick":"2",
-	    	"vmexit_inout_entry":"3",
-	    	"virtio_blk_notify_entry":"4",
-	    	"virtio_blk_proc_entry":"5",
-	    	"blockif_write_entry":"6",
-	    	"blockif_write_exit":"7",
-	    	"virtio_blk_proc_exit":"8",
-	    	"virtio_blk_notify_exit":"9",
-	    	"vmexit_inout_exit":"10",
-	    	"after kick":"11",
-	    	"blockif_proc_entry":"12",
-	    	"virtio_blk_done_entry":"13",
-	    	"virtio_blk_done_exit":"14",
-	    	"blockif_proc_exit":"15",
-	    	"virtblknotify":"16",
-	    	"before complete":"17",
-	    	"after complete":"18"
+	    	" A ":"1",
+	    	" Q ":"2",
+	    	" G ":"3",
+	    	" P ":"4",
+	    	" U ":"5",
+	    	" I ":"6",
+	    	" D ":"7",
+	    	" C ":"8"
 	},
-"spec":
-	["1","2","3","2","4","8","7","15","3","9","10","11"],
+"spec": ["1","2","3","4","5","6","7","8","1"],
+
 "draw_index":
 	{
-		"uos": [
-			[1,2],
-			[2,6],
-			[5,11],
-			[1,11]
-		],
 		"sos": [
-			[0,10],
-			[0,8],
-			[3,7],
-			[1,11]
+			[0,1],
+			[1,2],
+			[2,3],
+			[3,4],
+			[4,5],
+			[5,6],
+			[6,7],
+			[7,8]
 		]
 	}
 }

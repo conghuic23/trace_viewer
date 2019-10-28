@@ -18,14 +18,19 @@ CPU_FREQ = 1881
 tsc = 0
 
 def get_data_list(filename, add_dict, prefix):
-    print("open file {}".format(filename))
+    if prefix is None:
+        prefix = ""
+    print("open file {} ".format(filename))
     whole_list  = []
     if tsc:
-        pa = re.compile(r'\d+: .+:')
+        pa = re.compile(r'\d+: .+')
+        pab = re.compile(r'\d+: .+')
     else:
         pa = re.compile(r'\d+.\d+: .+:')
     with open(filename, 'r') as f:
         for line in f.readlines():
+            if line[0] == '#':
+                continue
             tmp_dict={}
             try:
                 tmp_dict["additional"] = ""
@@ -34,10 +39,19 @@ def get_data_list(filename, add_dict, prefix):
                         if key in line:
                             tmp_dict["additional"] = add_dict[key]
                             tmp_dict["fullinfo"] = prefix + line
-                            t = pa.findall(line)[0].split(":")
-                            tmp_dict["period"] = t[1].strip()
-                            tmp_dict["timestamp"] = float(t[0])
-                            whole_list.append(tmp_dict)
+                            t = pa.findall(line)
+                            if t:
+                                t = t[0].split(":")
+                                tmp_dict["period"] = t[1].strip()
+                                tmp_dict["timestamp"] = float(t[0])
+                                whole_list.append(tmp_dict)
+                            else:
+                                t = pab.findall(line)
+                                if t:
+                                    t = t[0].split(":")
+                                    tmp_dict["period"] = t[1].strip()
+                                    tmp_dict["timestamp"] = float(t[0])
+                                    whole_list.append(tmp_dict)
                 else:
                     t = pa.findall(line)
                     if t:
@@ -47,6 +61,16 @@ def get_data_list(filename, add_dict, prefix):
                         tmp_dict["period"] = t[1].strip()
                         tmp_dict["timestamp"] = float(t[0])
                         whole_list.append(tmp_dict)
+                    else:
+                        t = pab.findall(line)
+                        if t:
+                            t = t[0].split()
+                            tmp_dict["additional"] = " "
+                            tmp_dict["fullinfo"] = prefix + line
+                            tmp_dict["period"] = t[1].strip()
+                            tmp_dict["timestamp"] = float(t[0])
+                            whole_list.append(tmp_dict)
+
             except Exception as e:
                 print("LINE:",line)
                 print(e)
@@ -279,8 +303,8 @@ def prepare_draw_data(table, period, period_dict, period_spec):
     return data
 
 def pick_and_sorted(c_file, uos_file, sos_file, period_dict):
-    uos_file_data = get_data_list(uos_file, period_dict, "[UOS] ")
-    sos_file_data = get_data_list(sos_file, period_dict, "[SOS] ")
+    uos_file_data = get_data_list(uos_file, period_dict, None)
+    sos_file_data = get_data_list(sos_file, period_dict, None)
 
     merge_data = uos_file_data + sos_file_data
     print("merge data len: {}".format(len(merge_data)))
@@ -298,7 +322,7 @@ def pick_and_sorted(c_file, uos_file, sos_file, period_dict):
                 f.write(line)
         else:
             for d in sorted_data:
-                line = "{}\n".format(d["fullinfo"])
+                line = "{}".format(d["fullinfo"])
                 f.write(line)
 
     return sorted_data
@@ -441,6 +465,7 @@ def main():
     period_index = generate_period_pairs(len(period_spec))
 
     print("pick records from log file and sort...")
+    print(period_dict)
     sorted_data = pick_and_sorted(c_file,uos_file,sos_file, period_dict)
     print("pick and sorted done")
 
